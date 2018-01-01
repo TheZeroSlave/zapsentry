@@ -2,8 +2,8 @@ package zapsentry
 
 import (
 	raven "github.com/getsentry/raven-go"
-	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -17,10 +17,10 @@ func NewZapSentryCore(cfg Configuration) (zapcore.Core, error) {
 		return zapcore.NewNopCore(), err
 	}
 	return &core{
-		client: client,
-		cfg: &cfg,
+		client:       client,
+		cfg:          &cfg,
 		LevelEnabler: cfg.Level,
-		fields: make(map[string]interface{}),
+		fields:       make(map[string]interface{}),
 	}, nil
 }
 
@@ -92,15 +92,16 @@ func (c *core) with(fs []zapcore.Field) *core {
 	}
 
 	return &core{
-		client: c.client,
-		cfg: c.cfg,
-		fields: m,
+		client:       c.client,
+		cfg:          c.cfg,
+		fields:       m,
+		LevelEnabler: c.LevelEnabler,
 	}
 }
 
 type core struct {
 	client *raven.Client
-	cfg *Configuration
+	cfg    *Configuration
 	zapcore.LevelEnabler
 
 	fields map[string]interface{}
