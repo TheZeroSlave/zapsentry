@@ -2,7 +2,6 @@ package zapsentry
 
 import (
 	raven "github.com/getsentry/raven-go"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -11,8 +10,8 @@ const (
 	traceSkipFrames   = 2
 )
 
-func NewZapSentryCore(cfg Configuration) (zapcore.Core, error) {
-	client, err := raven.New(cfg.DSN)
+func NewZapSentryCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, error) {
+	client, err := factory()
 	if err != nil {
 		return zapcore.NewNopCore(), err
 	}
@@ -22,12 +21,6 @@ func NewZapSentryCore(cfg Configuration) (zapcore.Core, error) {
 		LevelEnabler: cfg.Level,
 		fields:       make(map[string]interface{}),
 	}, nil
-}
-
-func AttachCoreToLogger(sentryCore zapcore.Core, l *zap.Logger) *zap.Logger {
-	return l.WithOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
-		return zapcore.NewTee(core, sentryCore)
-	}))
 }
 
 func (c *core) With(fs []zapcore.Field) zapcore.Core {
