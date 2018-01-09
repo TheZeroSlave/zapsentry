@@ -9,7 +9,7 @@ func modifyToSentryLogger(log *zap.Logger, DSN string) *zap.Logger {
 			"component": "system",
 		},
 	}
-	core, err := zapsentry.NewZapSentryCore(cfg, zapsentry.NewSentryClientFromDSN(DSN))
+	core, err := zapsentry.NewCore(cfg, zapsentry.NewSentryClientFromDSN(DSN))
 	//in case of err it will return noop core. so we can safely attach it
 	if err != nil {
 		log.Warn("failed to init zap")
