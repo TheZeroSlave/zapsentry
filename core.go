@@ -10,7 +10,7 @@ const (
 	traceSkipFrames   = 2
 )
 
-func NewZapSentryCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, error) {
+func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, error) {
 	client, err := factory()
 	if err != nil {
 		return zapcore.NewNopCore(), err
