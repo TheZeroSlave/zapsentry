@@ -92,7 +92,11 @@ func (c *core) with(fs []zapcore.Field) *core {
 	}
 }
 
-func (c *core) GetSentryClient() *raven.Client {
+type ClientGetter interface {
+	GetClient() *raven.Client
+}
+
+func (c *core) GetClient() *raven.Client {
 	return c.client
 }
 
