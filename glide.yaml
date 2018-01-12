@@ -1,7 +1,0 @@
-package: github.com/TheZeroSlave/zapsentry
-import:
-- package: github.com/getsentry/raven-go
-- package: go.uber.org/zap
-  version: v1.4.1
-  subpackages:
-  - zapcore
