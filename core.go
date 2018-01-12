@@ -92,6 +92,14 @@ func (c *core) with(fs []zapcore.Field) *core {
 	}
 }
 
+type ClientGetter interface {
+	GetClient() *raven.Client
+}
+
+func (c *core) GetClient() *raven.Client {
+	return c.client
+}
+
 type core struct {
 	client *raven.Client
 	cfg    *Configuration
