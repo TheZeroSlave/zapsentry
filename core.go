@@ -1,13 +1,10 @@
 package zapsentry
 
 import (
-	raven "github.com/getsentry/raven-go"
-	"go.uber.org/zap/zapcore"
-)
+	"time"
 
-const (
-	traceContextLines = 3
-	traceSkipFrames   = 2
+	"github.com/getsentry/sentry-go"
+	"go.uber.org/zap/zapcore"
 )
 
 func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, error) {
@@ -37,32 +34,37 @@ func (c *core) Check(ent zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.Check
 func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 	clone := c.with(fs)
 
-	packet := &raven.Packet{
-		Message:   ent.Message,
-		Timestamp: raven.Timestamp(ent.Time),
-		Level:     ravenSeverity(ent.Level),
-		Platform:  "Golang",
-		Extra:     clone.fields,
-	}
+	event := sentry.NewEvent()
+	event.Message = ent.Message
+	event.Timestamp = ent.Time.Unix()
+	event.Level = sentrySeverity(ent.Level)
+	event.Platform = "Golang"
+	event.Extra = clone.fields
+	event.Tags = c.cfg.Tags
 
 	if !c.cfg.DisableStacktrace {
-		trace := raven.NewStacktrace(traceSkipFrames, traceContextLines, nil)
+		trace := sentry.NewStacktrace()
 		if trace != nil {
-			packet.Interfaces = append(packet.Interfaces, trace)
+			event.Exception = []sentry.Exception{{
+				Type:       ent.Message,
+				Value:      ent.Caller.TrimmedPath(),
+				Stacktrace: trace,
+			}}
 		}
 	}
 
-	_, _ = c.client.Capture(packet, c.cfg.Tags)
+	scope := sentry.CurrentHub().Scope()
+	_ = c.client.CaptureEvent(event, nil, scope)
 
 	// We may be crashing the program, so should flush any buffered events.
 	if ent.Level > zapcore.ErrorLevel {
-		c.client.Wait()
+		c.client.Flush(5 * time.Second)
 	}
 	return nil
 }
 
 func (c *core) Sync() error {
-	c.client.Wait()
+	c.client.Flush(5 * time.Second)
 	return nil
 }
 
@@ -93,15 +95,15 @@ func (c *core) with(fs []zapcore.Field) *core {
 }
 
 type ClientGetter interface {
-	GetClient() *raven.Client
+	GetClient() *sentry.Client
 }
 
-func (c *core) GetClient() *raven.Client {
+func (c *core) GetClient() *sentry.Client {
 	return c.client
 }
 
 type core struct {
-	client *raven.Client
+	client *sentry.Client
 	cfg    *Configuration
 	zapcore.LevelEnabler
 

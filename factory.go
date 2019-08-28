@@ -1,17 +1,21 @@
 package zapsentry
 
-import "github.com/getsentry/raven-go"
+import (
+	"github.com/getsentry/sentry-go"
+)
 
 func NewSentryClientFromDSN(DSN string) SentryClientFactory {
-	return func() (*raven.Client, error) {
-		return raven.New(DSN)
+	return func() (*sentry.Client, error) {
+		return sentry.NewClient(sentry.ClientOptions{
+			Dsn: DSN,
+		})
 	}
 }
 
-func NewSentryClientFromClient(client *raven.Client) SentryClientFactory {
-	return func() (*raven.Client, error) {
+func NewSentryClientFromClient(client *sentry.Client) SentryClientFactory {
+	return func() (*sentry.Client, error) {
 		return client, nil
 	}
 }
 
-type SentryClientFactory func() (*raven.Client, error)
+type SentryClientFactory func() (*sentry.Client, error)

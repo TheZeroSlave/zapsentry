@@ -1,28 +1,28 @@
 package zapsentry
 
 import (
-	"github.com/getsentry/raven-go"
+	"github.com/getsentry/sentry-go"
 	"go.uber.org/zap/zapcore"
 )
 
-func ravenSeverity(lvl zapcore.Level) raven.Severity {
+func sentrySeverity(lvl zapcore.Level) sentry.Level {
 	switch lvl {
 	case zapcore.DebugLevel:
-		return raven.INFO
+		return sentry.LevelDebug
 	case zapcore.InfoLevel:
-		return raven.INFO
+		return sentry.LevelInfo
 	case zapcore.WarnLevel:
-		return raven.WARNING
+		return sentry.LevelWarning
 	case zapcore.ErrorLevel:
-		return raven.ERROR
+		return sentry.LevelError
 	case zapcore.DPanicLevel:
-		return raven.FATAL
+		return sentry.LevelFatal
 	case zapcore.PanicLevel:
-		return raven.FATAL
+		return sentry.LevelFatal
 	case zapcore.FatalLevel:
-		return raven.FATAL
+		return sentry.LevelFatal
 	default:
 		// Unrecognized levels are fatal.
-		return raven.FATAL
+		return sentry.LevelFatal
 	}
 }
