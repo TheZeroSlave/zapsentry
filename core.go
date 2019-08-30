@@ -12,12 +12,20 @@ func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, erro
 	if err != nil {
 		return zapcore.NewNopCore(), err
 	}
-	return &core{
+
+	core := core{
 		client:       client,
 		cfg:          &cfg,
 		LevelEnabler: cfg.Level,
+		flushTimeout: 5 * time.Second,
 		fields:       make(map[string]interface{}),
-	}, nil
+	}
+
+	if cfg.FlushTimeout > 0 {
+		core.flushTimeout = cfg.FlushTimeout
+	}
+
+	return &core, nil
 }
 
 func (c *core) With(fs []zapcore.Field) zapcore.Core {
@@ -58,13 +66,13 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 
 	// We may be crashing the program, so should flush any buffered events.
 	if ent.Level > zapcore.ErrorLevel {
-		c.client.Flush(5 * time.Second)
+		c.client.Flush(c.flushTimeout)
 	}
 	return nil
 }
 
 func (c *core) Sync() error {
-	c.client.Flush(5 * time.Second)
+	c.client.Flush(c.flushTimeout)
 	return nil
 }
 
@@ -106,6 +114,7 @@ type core struct {
 	client *sentry.Client
 	cfg    *Configuration
 	zapcore.LevelEnabler
+	flushTimeout time.Duration
 
 	fields map[string]interface{}
 }
