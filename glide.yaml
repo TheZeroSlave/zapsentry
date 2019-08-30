@@ -1,0 +1,8 @@
+package: zapsentry
+import:
+- package: github.com/getsentry/sentry-go
+  version: ^0.1.0
+- package: go.uber.org/zap
+  version: ^1.0.0
+  subpackages:
+  - zapcore
