@@ -3,6 +3,7 @@ package zapsentry
 import (
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -12,4 +13,5 @@ type Configuration struct {
 	DisableStacktrace bool
 	Level             zapcore.Level
 	FlushTimeout      time.Duration
+	Hub               *sentry.Hub
 }
