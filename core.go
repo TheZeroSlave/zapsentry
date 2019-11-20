@@ -61,8 +61,11 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 		}
 	}
 
-	scope := sentry.CurrentHub().Scope()
-	_ = c.client.CaptureEvent(event, nil, scope)
+	hub := c.cfg.Hub
+	if hub == nil {
+		hub = sentry.CurrentHub()
+	}
+	_ = c.client.CaptureEvent(event, nil, hub.Scope())
 
 	// We may be crashing the program, so should flush any buffered events.
 	if ent.Level > zapcore.ErrorLevel {
