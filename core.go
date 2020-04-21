@@ -44,7 +44,7 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 
 	event := sentry.NewEvent()
 	event.Message = ent.Message
-	event.Timestamp = ent.Time.Unix()
+	event.Timestamp = ent.Time
 	event.Level = sentrySeverity(ent.Level)
 	event.Platform = "Golang"
 	event.Extra = clone.fields
