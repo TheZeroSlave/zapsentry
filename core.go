@@ -100,6 +100,7 @@ func (c *core) with(fs []zapcore.Field) *core {
 	return &core{
 		client:       c.client,
 		cfg:          c.cfg,
+		flushTimeout: c.flushTimeout,
 		fields:       m,
 		LevelEnabler: c.LevelEnabler,
 	}
