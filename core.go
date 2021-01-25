@@ -140,7 +140,7 @@ func filterFrames(frames []sentry.Frame) []sentry.Frame {
 		if (strings.HasPrefix(frames[i].Module, "github.com/TheZeroSlave/zapsentry") ||
 			strings.HasPrefix(frames[i].Function, "go.uber.org/zap")) &&
 			!strings.HasSuffix(frames[i].Module, "_test") {
-			continue
+			break
 		}
 		filteredFrames = append(filteredFrames, frames[i])
 	}
