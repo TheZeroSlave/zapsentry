@@ -1,6 +1,7 @@
 package zapsentry
 
 import (
+	"strings"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -53,6 +54,7 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 	if !c.cfg.DisableStacktrace {
 		trace := sentry.NewStacktrace()
 		if trace != nil {
+			trace.Frames = filterFrames(trace.Frames)
 			event.Exception = []sentry.Exception{{
 				Type:       ent.Message,
 				Value:      ent.Caller.TrimmedPath(),
@@ -121,4 +123,26 @@ type core struct {
 	flushTimeout time.Duration
 
 	fields map[string]interface{}
+}
+
+// follow same logic with sentry-go to filter unnecessary frames
+// ref:
+// https://github.com/getsentry/sentry-go/blob/362a80dcc41f9ad11c8df556104db3efa27a419e/stacktrace.go#L256-L280
+func filterFrames(frames []sentry.Frame) []sentry.Frame {
+	if len(frames) == 0 {
+		return nil
+	}
+	filteredFrames := make([]sentry.Frame, 0, len(frames))
+
+	for i := range frames {
+		// Skip zapsentry and zap internal frames, except for frames in _test packages (for
+		// testing).
+		if (strings.HasPrefix(frames[i].Module, "github.com/TheZeroSlave/zapsentry") ||
+			strings.HasPrefix(frames[i].Function, "go.uber.org/zap")) &&
+			!strings.HasSuffix(frames[i].Module, "_test") {
+			break
+		}
+		filteredFrames = append(filteredFrames, frames[i])
+	}
+	return filteredFrames
 }
