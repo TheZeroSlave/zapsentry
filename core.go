@@ -52,7 +52,7 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 	event.Tags = c.cfg.Tags
 
 	if !c.cfg.DisableStacktrace {
-		trace := sentry.NewStacktrace()
+		trace := extractTrace(fs)
 		if trace != nil {
 			trace.Frames = filterFrames(trace.Frames)
 			event.Exception = []sentry.Exception{{
@@ -145,4 +145,24 @@ func filterFrames(frames []sentry.Frame) []sentry.Frame {
 		filteredFrames = append(filteredFrames, frames[i])
 	}
 	return filteredFrames
+}
+
+// ExtractTrace extracts stacktrace from error field if exists
+func extractTrace(fs []zapcore.Field) *sentry.Stacktrace {
+	if len(fs) == 0 {
+		return sentry.NewStacktrace()
+	}
+	var e interface{}
+
+	// extract from first or last element
+	if fs[0].Key == "error" {
+		e = fs[0].Interface
+	} else if fs[len(fs)-1].Key == "error" {
+		e = fs[len(fs)-1].Interface
+	}
+	switch e.(type) {
+	case error:
+		return sentry.ExtractStacktrace(e.(error))
+	}
+	return sentry.NewStacktrace()
 }
