@@ -30,6 +30,8 @@ func ExampleAttachCoreToLogger() {
 	// Setup zapsentry
 	core, err := zapsentry.NewCore(zapsentry.Configuration{
 		Level: zapcore.ErrorLevel, // when to send message to sentry
+		EnableBreadcrumbs: true, // enable sending breadcrumbs to Sentry
+		BreadcrumbLevel: zapcore.InfoLevel, // at what level should we sent breadcrumbs to sentry
 		Tags: map[string]string{
 			"component": "system",
 		},
