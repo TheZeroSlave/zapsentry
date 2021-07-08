@@ -1,6 +1,7 @@
 package zapsentry
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -14,15 +15,18 @@ func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, erro
 		return zapcore.NewNopCore(), err
 	}
 
-	levelEnabler := cfg.Level
-	if cfg.EnableBreadcrumbs {
-		levelEnabler = cfg.BreadcrumbLevel
+	if cfg.EnableBreadcrumbs && cfg.BreadcrumbLevel > cfg.Level {
+		return zapcore.NewNopCore(), errors.New("breadcrumb level must be lower than error level")
 	}
 
 	core := core{
-		client:       client,
-		cfg:          &cfg,
-		LevelEnabler: levelEnabler,
+		client: client,
+		cfg:    &cfg,
+		LevelEnabler: &LevelEnabler{
+			Level:             cfg.Level,
+			breadcrumbsLevel:  cfg.BreadcrumbLevel,
+			enableBreadcrumbs: cfg.EnableBreadcrumbs,
+		},
 		flushTimeout: 5 * time.Second,
 		fields:       make(map[string]interface{}),
 	}
@@ -145,6 +149,16 @@ type core struct {
 	flushTimeout time.Duration
 
 	fields map[string]interface{}
+}
+
+type LevelEnabler struct {
+	zapcore.Level
+	enableBreadcrumbs bool
+	breadcrumbsLevel  zapcore.Level
+}
+
+func (l *LevelEnabler) Enabled(lvl zapcore.Level) bool {
+	return l.Level.Enabled(lvl) || (l.enableBreadcrumbs && l.breadcrumbsLevel.Enabled(lvl))
 }
 
 // follow same logic with sentry-go to filter unnecessary frames
