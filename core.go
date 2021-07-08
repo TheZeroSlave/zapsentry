@@ -1,6 +1,7 @@
 package zapsentry
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -14,10 +15,18 @@ func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, erro
 		return zapcore.NewNopCore(), err
 	}
 
+	if cfg.EnableBreadcrumbs && cfg.BreadcrumbLevel > cfg.Level {
+		return zapcore.NewNopCore(), errors.New("breadcrumb level must be lower than error level")
+	}
+
 	core := core{
-		client:       client,
-		cfg:          &cfg,
-		LevelEnabler: cfg.Level,
+		client: client,
+		cfg:    &cfg,
+		LevelEnabler: &LevelEnabler{
+			Level:             cfg.Level,
+			breadcrumbsLevel:  cfg.BreadcrumbLevel,
+			enableBreadcrumbs: cfg.EnableBreadcrumbs,
+		},
 		flushTimeout: 5 * time.Second,
 		fields:       make(map[string]interface{}),
 	}
@@ -34,6 +43,9 @@ func (c *core) With(fs []zapcore.Field) zapcore.Core {
 }
 
 func (c *core) Check(ent zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
+	if c.cfg.EnableBreadcrumbs && c.cfg.BreadcrumbLevel.Enabled(ent.Level) {
+		return ce.AddCore(ent, c)
+	}
 	if c.cfg.Level.Enabled(ent.Level) {
 		return ce.AddCore(ent, c)
 	}
@@ -43,31 +55,45 @@ func (c *core) Check(ent zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.Check
 func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 	clone := c.with(fs)
 
-	event := sentry.NewEvent()
-	event.Message = ent.Message
-	event.Timestamp = ent.Time
-	event.Level = sentrySeverity(ent.Level)
-	event.Platform = "Golang"
-	event.Extra = clone.fields
-	event.Tags = c.cfg.Tags
-
-	if !c.cfg.DisableStacktrace {
-		trace := sentry.NewStacktrace()
-		if trace != nil {
-			trace.Frames = filterFrames(trace.Frames)
-			event.Exception = []sentry.Exception{{
-				Type:       ent.Message,
-				Value:      ent.Caller.TrimmedPath(),
-				Stacktrace: trace,
-			}}
-		}
-	}
-
 	hub := c.cfg.Hub
 	if hub == nil {
 		hub = sentry.CurrentHub()
 	}
-	_ = c.client.CaptureEvent(event, nil, hub.Scope())
+
+	if ent.Level.Enabled(c.cfg.Level) {
+		event := sentry.NewEvent()
+		event.Message = ent.Message
+		event.Timestamp = ent.Time
+		event.Level = sentrySeverity(ent.Level)
+		event.Platform = "Golang"
+		event.Extra = clone.fields
+		event.Tags = c.cfg.Tags
+
+		if !c.cfg.DisableStacktrace {
+			trace := sentry.NewStacktrace()
+			if trace != nil {
+				trace.Frames = filterFrames(trace.Frames)
+				event.Exception = []sentry.Exception{{
+					Type:       ent.Message,
+					Value:      ent.Caller.TrimmedPath(),
+					Stacktrace: trace,
+				}}
+			}
+		}
+
+		_ = c.client.CaptureEvent(event, nil, hub.Scope())
+	}
+
+	if c.cfg.EnableBreadcrumbs && c.cfg.BreadcrumbLevel.Enabled(ent.Level) {
+		breadcrumb := sentry.Breadcrumb{
+			Data:      clone.fields,
+			Level:     sentrySeverity(ent.Level),
+			Message:   ent.Message,
+			Timestamp: ent.Time,
+			Type:      "default",
+		}
+		hub.AddBreadcrumb(&breadcrumb, nil)
+	}
 
 	// We may be crashing the program, so should flush any buffered events.
 	if ent.Level > zapcore.ErrorLevel {
@@ -123,6 +149,16 @@ type core struct {
 	flushTimeout time.Duration
 
 	fields map[string]interface{}
+}
+
+type LevelEnabler struct {
+	zapcore.Level
+	enableBreadcrumbs bool
+	breadcrumbsLevel  zapcore.Level
+}
+
+func (l *LevelEnabler) Enabled(lvl zapcore.Level) bool {
+	return l.Level.Enabled(lvl) || (l.enableBreadcrumbs && l.breadcrumbsLevel.Enabled(lvl))
 }
 
 // follow same logic with sentry-go to filter unnecessary frames
