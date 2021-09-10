@@ -12,6 +12,10 @@ func modifyToSentryLogger(log *zap.Logger, DSN string) *zap.Logger {
 		},
 	}
 	core, err := zapsentry.NewCore(cfg, zapsentry.NewSentryClientFromDSN(DSN))
+	
+	// to use breadcrumbs feature - create new scope explicitly
+	log = log.With(zapsentry.NewScope())
+	
 	//in case of err it will return noop core. so we can safely attach it
 	if err != nil {
 		log.Warn("failed to init zap", zap.Error(err))

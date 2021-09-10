@@ -6,8 +6,23 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
+
+const (
+	maxLimit = 1000
+
+	zapSentryScopeKey = "_zapsentry_scope_"
+)
+
+func NewScope() zapcore.Field {
+	f := zap.Skip()
+	f.Interface = sentry.NewScope()
+	f.Key = zapSentryScopeKey
+
+	return f
+}
 
 func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, error) {
 	client, err := factory()
@@ -55,9 +70,18 @@ func (c *core) Check(ent zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.Check
 func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 	clone := c.with(fs)
 
-	hub := c.cfg.Hub
-	if hub == nil {
-		hub = sentry.CurrentHub()
+	/*
+		only when we have local sentryScope to avoid collecting all breadcrumbs ever in a global scope
+	 */
+	if c.cfg.EnableBreadcrumbs && c.cfg.BreadcrumbLevel.Enabled(ent.Level) && c.sentryScope != nil {
+		breadcrumb := sentry.Breadcrumb{
+			Data:      clone.fields,
+			Level:     sentrySeverity(ent.Level),
+			Message:   ent.Message,
+			Timestamp: ent.Time,
+			Type:      "default",
+		}
+		c.sentryScope.AddBreadcrumb(&breadcrumb, maxLimit)
 	}
 
 	if ent.Level.Enabled(c.cfg.Level) {
@@ -81,24 +105,46 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 			}
 		}
 
-		_ = c.client.CaptureEvent(event, nil, hub.Scope())
-	}
-
-	if c.cfg.EnableBreadcrumbs && c.cfg.BreadcrumbLevel.Enabled(ent.Level) {
-		breadcrumb := sentry.Breadcrumb{
-			Data:      clone.fields,
-			Level:     sentrySeverity(ent.Level),
-			Message:   ent.Message,
-			Timestamp: ent.Time,
-			Type:      "default",
-		}
-		hub.AddBreadcrumb(&breadcrumb, nil)
+		_ = c.client.CaptureEvent(event, nil, c.scope())
 	}
 
 	// We may be crashing the program, so should flush any buffered events.
 	if ent.Level > zapcore.ErrorLevel {
 		c.client.Flush(c.flushTimeout)
 	}
+	return nil
+}
+
+func (c *core) hub() *sentry.Hub {
+	if c.cfg.Hub != nil {
+		return c.cfg.Hub
+	}
+	return sentry.CurrentHub()
+}
+
+func (c *core) scope() *sentry.Scope {
+	if c.sentryScope != nil {
+		return c.sentryScope
+	}
+	return c.hub().Scope()
+}
+
+func (c *core) findScope(fs []zapcore.Field) *sentry.Scope {
+	for _, f := range fs {
+		if s  := getScope(f); s != nil {
+			return s
+		}
+	}
+	return c.sentryScope
+}
+
+func getScope(field zapcore.Field) *sentry.Scope {
+	if field.Type == zapcore.SkipType {
+		if scope, ok := field.Interface.(*sentry.Scope); ok && field.Key == zapSentryScopeKey {
+			return scope
+		}
+	}
+
 	return nil
 }
 
@@ -131,6 +177,7 @@ func (c *core) with(fs []zapcore.Field) *core {
 		flushTimeout: c.flushTimeout,
 		fields:       m,
 		LevelEnabler: c.LevelEnabler,
+		sentryScope:  c.findScope(fs),
 	}
 }
 
@@ -147,6 +194,8 @@ type core struct {
 	cfg    *Configuration
 	zapcore.LevelEnabler
 	flushTimeout time.Duration
+
+	sentryScope *sentry.Scope
 
 	fields map[string]interface{}
 }

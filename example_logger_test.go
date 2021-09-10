@@ -42,7 +42,9 @@ func ExampleAttachCoreToLogger() {
 	newLogger := zapsentry.AttachCoreToLogger(core, logger)
 
 	// Send error log
-	newLogger.Error("[error] something went wrong!", zap.String("method", "unknown"))
+	newLogger.
+		With(zapsentry.NewScope()).
+		Error("[error] something went wrong!", zap.String("method", "unknown"))
 
 	// Check output
 	fmt.Println(recordedLogs.All()[0].Message)

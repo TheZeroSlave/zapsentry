@@ -13,7 +13,7 @@ type Configuration struct {
 	DisableStacktrace bool
 	Level             zapcore.Level
 	BreadcrumbLevel   zapcore.Level
-	EnableBreadcrumbs bool
+	EnableBreadcrumbs bool // this feature works only when you explicitly passed new scope
 	FlushTimeout      time.Duration
 	Hub               *sentry.Hub
 }
