@@ -84,7 +84,7 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 		c.sentryScope.AddBreadcrumb(&breadcrumb, maxLimit)
 	}
 
-	if ent.Level.Enabled(c.cfg.Level) {
+	if c.cfg.Level.Enabled(ent.Level) {
 		event := sentry.NewEvent()
 		event.Message = ent.Message
 		event.Timestamp = ent.Time
