@@ -18,7 +18,49 @@ const (
 	zapSentryScopeKey = "_zapsentry_scope_"
 )
 
-var ErrInvalidBreadcrumbLevel = errors.New("breadcrumb level must be lower than or equal to error level")
+var (
+	ErrInvalidBreadcrumbLevel = errors.New("breadcrumb level must be lower than or equal to error level")
+
+	defaultFrameMatchers = FrameMatchers{
+		SkipModulePrefixFrameMatcher("github.com/TheZeroSlave/zapsentry"),
+		SkipFunctionPrefixFrameMatcher("go.uber.org/zap"),
+	}
+)
+
+type (
+	FrameMatcher interface {
+		Matches(f sentry.Frame) bool
+	}
+	FrameMatchers                  []FrameMatcher
+	FrameMatcherFunc               func(f sentry.Frame) bool
+	SkipModulePrefixFrameMatcher   string
+	SkipFunctionPrefixFrameMatcher string
+)
+
+func (f FrameMatcherFunc) Matches(frame sentry.Frame) bool {
+	return f(frame)
+}
+
+func (f SkipModulePrefixFrameMatcher) Matches(frame sentry.Frame) bool {
+	return strings.HasPrefix(frame.Module, string(f))
+}
+
+func (f SkipFunctionPrefixFrameMatcher) Matches(frame sentry.Frame) bool {
+	return strings.HasPrefix(frame.Function, string(f))
+}
+
+func (ff FrameMatchers) Matches(frame sentry.Frame) bool {
+	for i := range ff {
+		if ff[i].Matches(frame) {
+			return true
+		}
+	}
+	return false
+}
+
+func CombineFrameMatchers(matcher ...FrameMatcher) FrameMatcher {
+	return FrameMatchers(matcher)
+}
 
 func NewScopeFromScope(scope *sentry.Scope) zapcore.Field {
 	f := zap.Skip()
@@ -44,6 +86,20 @@ func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, erro
 
 	if cfg.MaxBreadcrumbs <= 0 {
 		cfg.MaxBreadcrumbs = defaultMaxBreadcrumbs
+	}
+
+	// copy default values to avoid accidental modification
+	matchers := make(FrameMatchers, len(defaultFrameMatchers), len(defaultFrameMatchers)+1)
+	copy(matchers, defaultFrameMatchers)
+
+	switch m := cfg.FrameMatcher.(type) {
+	case nil:
+		cfg.FrameMatcher = matchers
+	case FrameMatchers:
+		// in case the configured matcher was already a collection, append the default ones to avoid nested looping
+		cfg.FrameMatcher = append(matchers, m...)
+	default:
+		cfg.FrameMatcher = append(matchers, cfg.FrameMatcher)
 	}
 
 	core := core{
@@ -125,7 +181,7 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 		if event.Exception == nil && !c.cfg.DisableStacktrace && c.client.Options().AttachStacktrace {
 			stacktrace := sentry.NewStacktrace()
 			if stacktrace != nil {
-				stacktrace.Frames = filterFrames(stacktrace.Frames)
+				stacktrace.Frames = c.filterFrames(stacktrace.Frames)
 				event.Threads = []sentry.Thread{{Stacktrace: stacktrace, Current: true}}
 			}
 		}
@@ -166,7 +222,7 @@ func (c *core) createExceptions() []sentry.Exception {
 	if !c.cfg.DisableStacktrace && exceptions[0].Stacktrace == nil {
 		stacktrace := sentry.NewStacktrace()
 		if stacktrace != nil {
-			stacktrace.Frames = filterFrames(stacktrace.Frames)
+			stacktrace.Frames = c.filterFrames(stacktrace.Frames)
 			exceptions[0].Stacktrace = stacktrace
 		}
 	}
@@ -314,6 +370,28 @@ type core struct {
 	fields map[string]interface{}
 }
 
+// follow same logic with sentry-go to filter unnecessary frames
+// ref:
+// https://github.com/getsentry/sentry-go/blob/362a80dcc41f9ad11c8df556104db3efa27a419e/stacktrace.go#L256-L280
+func (c *core) filterFrames(frames []sentry.Frame) []sentry.Frame {
+	if len(frames) == 0 {
+		return nil
+	}
+
+	for i := 0; i < len(frames); {
+		if c.cfg.FrameMatcher.Matches(frames[i]) {
+			if i < len(frames)-1 {
+				copy(frames[i:], frames[i+1:])
+			}
+			frames = frames[:len(frames)-1]
+			continue
+		}
+		i++
+	}
+
+	return frames
+}
+
 type LevelEnabler struct {
 	zapcore.LevelEnabler
 	enableBreadcrumbs bool
@@ -322,25 +400,4 @@ type LevelEnabler struct {
 
 func (l *LevelEnabler) Enabled(lvl zapcore.Level) bool {
 	return l.LevelEnabler.Enabled(lvl) || (l.enableBreadcrumbs && l.breadcrumbsLevel.Enabled(lvl))
-}
-
-// follow same logic with sentry-go to filter unnecessary frames
-// ref:
-// https://github.com/getsentry/sentry-go/blob/362a80dcc41f9ad11c8df556104db3efa27a419e/stacktrace.go#L256-L280
-func filterFrames(frames []sentry.Frame) []sentry.Frame {
-	if len(frames) == 0 {
-		return nil
-	}
-
-	for i := range frames {
-		// Skip zapsentry and zap internal frames, except for frames in _test packages (for
-		// testing).
-		if (strings.HasPrefix(frames[i].Module, "github.com/TheZeroSlave/zapsentry") ||
-			strings.HasPrefix(frames[i].Function, "go.uber.org/zap")) &&
-			!strings.HasSuffix(frames[i].Module, "_test") {
-			return frames[0:i]
-		}
-	}
-
-	return frames
 }

@@ -29,12 +29,17 @@ func ExampleAttachCoreToLogger() {
 
 	// Setup zapsentry
 	core, err := zapsentry.NewCore(zapsentry.Configuration{
-		Level: zapcore.ErrorLevel, // when to send message to sentry
-		EnableBreadcrumbs: true, // enable sending breadcrumbs to Sentry
-		BreadcrumbLevel: zapcore.InfoLevel, // at what level should we sent breadcrumbs to sentry
+		Level:             zapcore.ErrorLevel, // when to send message to sentry
+		EnableBreadcrumbs: true,               // enable sending breadcrumbs to Sentry
+		BreadcrumbLevel:   zapcore.InfoLevel,  // at what level should we sent breadcrumbs to sentry
 		Tags: map[string]string{
 			"component": "system",
 		},
+		FrameMatcher: zapsentry.CombineFrameMatchers(
+			// skip all frames having a prefix of 'go.uber.org/zap'
+			// this can be used to exclude e.g. logging adapters from the stacktrace
+			zapsentry.SkipFunctionPrefixFrameMatcher("go.uber.org/zap"),
+		),
 	}, zapsentry.NewSentryClientFromClient(sentryClient))
 	if err != nil {
 		log.Fatal(err)
@@ -59,8 +64,8 @@ func ExampleAttachCoreToLogger() {
 
 func mockSentryClient(f func(event *sentry.Event)) *sentry.Client {
 	client, _ := sentry.NewClient(sentry.ClientOptions{
-		Dsn:              "",
-		Transport:        &transport{MockSendEvent: f},
+		Dsn:       "",
+		Transport: &transport{MockSendEvent: f},
 	})
 	return client
 }
