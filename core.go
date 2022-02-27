@@ -119,7 +119,7 @@ func (c *core) createExceptions() []sentry.Exception {
 		return nil
 	}
 
-	processedErrors := make(map[error]struct{}, errorsCount)
+	processedErrors := make(map[string]struct{}, errorsCount)
 	exceptions := make([]sentry.Exception, 0, errorsCount)
 
 	for i := errorsCount - 1; i >= 0; i-- {
@@ -143,17 +143,21 @@ func (c *core) createExceptions() []sentry.Exception {
 	return exceptions
 }
 
+func getTypeOf(err error) string {
+	return err.Error() + reflect.TypeOf(err).String()
+}
+
 func (c *core) addExceptionsFromError(
 	exceptions []sentry.Exception,
-	processedErrors map[error]struct{},
+	processedErrors map[string]struct{},
 	err error,
 ) []sentry.Exception {
 	for i := 0; i < maxErrorDepth && err != nil; i++ {
-		if _, ok := processedErrors[err]; ok {
+		if _, ok := processedErrors[getTypeOf(err)]; ok {
 			return exceptions
 		}
 
-		processedErrors[err] = struct{}{}
+		processedErrors[getTypeOf(err)] = struct{}{}
 
 		exception := sentry.Exception{Value: err.Error(), Type: reflect.TypeOf(err).String()}
 
