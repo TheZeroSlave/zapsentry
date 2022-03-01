@@ -70,7 +70,7 @@ func (c *core) Check(ent zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.Check
 }
 
 func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
-	clone := c.with(fs)
+	clone := c.with(c.addSpecialFields(ent, fs))
 
 	// only when we have local sentryScope to avoid collecting all breadcrumbs ever in a global scope
 	if c.cfg.EnableBreadcrumbs && c.cfg.BreadcrumbLevel.Enabled(ent.Level) && c.sentryScope != nil {
@@ -110,6 +110,14 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 	}
 
 	return nil
+}
+
+func (c *core) addSpecialFields(ent zapcore.Entry, fs []zapcore.Field) []zapcore.Field {
+	if c.cfg.NameKey != "" && ent.LoggerName != "" {
+		fs = append(fs, zap.String(c.cfg.NameKey, ent.LoggerName))
+	}
+
+	return fs
 }
 
 func (c *core) createExceptions() []sentry.Exception {

@@ -10,6 +10,7 @@ import (
 // Configuration is a minimal set of parameters for Sentry integration.
 type Configuration struct {
 	Tags              map[string]string
+	NameKey           string
 	DisableStacktrace bool
 	Level             zapcore.Level
 	BreadcrumbLevel   zapcore.Level
