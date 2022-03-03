@@ -24,15 +24,15 @@ type Configuration struct {
 	// Level is the minimal level of sentry.Event(s).
 	Level zapcore.Level
 
+	// EnableBreadcrumbs enables use of sentry.Breadcrumb(s).
+	// This feature works only when you explicitly passed new scope.
+	EnableBreadcrumbs bool
+
 	// BreadcrumbLevel is the minimal level of sentry.Breadcrumb(s).
 	// Breadcrumb specifies an application event that occurred before a Sentry event.
 	// NewCore fails if BreadcrumbLevel is greater than Level.
 	// The field is ignored, if EnableBreadcrumbs is not set.
 	BreadcrumbLevel zapcore.Level
-
-	// EnableBreadcrumbs enables use of sentry.Breadcrumb(s).
-	// This feature works only when you explicitly passed new scope.
-	EnableBreadcrumbs bool
 
 	// FlushTimeout is the timeout for flushing events to Sentry.
 	FlushTimeout time.Duration
