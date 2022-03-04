@@ -33,7 +33,7 @@ func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, erro
 	}
 
 	if cfg.EnableBreadcrumbs && cfg.BreadcrumbLevel > cfg.Level {
-		return zapcore.NewNopCore(), errors.New("breadcrumb level must be lower than error level")
+		return zapcore.NewNopCore(), errors.New("breadcrumb level must be lower than or equal to error level")
 	}
 
 	core := core{
@@ -70,7 +70,7 @@ func (c *core) Check(ent zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.Check
 }
 
 func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
-	clone := c.with(fs)
+	clone := c.with(c.addSpecialFields(ent, fs))
 
 	// only when we have local sentryScope to avoid collecting all breadcrumbs ever in a global scope
 	if c.cfg.EnableBreadcrumbs && c.cfg.BreadcrumbLevel.Enabled(ent.Level) && c.sentryScope != nil {
@@ -110,6 +110,14 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 	}
 
 	return nil
+}
+
+func (c *core) addSpecialFields(ent zapcore.Entry, fs []zapcore.Field) []zapcore.Field {
+	if c.cfg.LoggerNameKey != "" && ent.LoggerName != "" {
+		fs = append(fs, zap.String(c.cfg.LoggerNameKey, ent.LoggerName))
+	}
+
+	return fs
 }
 
 func (c *core) createExceptions() []sentry.Exception {
