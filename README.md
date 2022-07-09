@@ -26,17 +26,24 @@ func modifyToSentryLogger(log *zap.Logger, client *sentry.Client) *zap.Logger {
 }
 ```
 
-Please note that both examples does not guarantee that your events will be sent before the app exists.
-To ensure this, the easy way is to use the client example and defer the flush. Example:
+Please note that wrapper does not guarantee that all your events will be sent before the app exits.
+Flush called internally only in case of writing message with severity level > zapcore.ErrorLevel(Fatal, Panic, ...).
+If you want to ensure your messages come to sentry - call the flush on native sentry client at defer. 
+Example:
 ```golang
-    sentryClient, err := sentry.NewClient(sentry.ClientOptions{
-		Dsn:         "Sentry DSN",
+func main() {
+	sentryClient, err := sentry.NewClient(sentry.ClientOptions{
+		Dsn: "Sentry DSN",
 	})
 	if err != nil {
 		// Handle the error here
 	}
-
 	// Flush buffered events before the program terminates.
 	// Set the timeout to the maximum duration the program can afford to wait.
 	defer sentryClient.Flush(2 * time.Second)
+	
+	// create zap log and wrapper...
+	
+	// create and run your app here...
+}
 ```
