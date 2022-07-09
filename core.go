@@ -18,12 +18,16 @@ const (
 	zapSentryScopeKey = "_zapsentry_scope_"
 )
 
-func NewScope() zapcore.Field {
+func NewScopeFromScope(scope *sentry.Scope) zapcore.Field {
 	f := zap.Skip()
-	f.Interface = sentry.NewScope()
+	f.Interface = scope
 	f.Key = zapSentryScopeKey
 
 	return f
+}
+
+func NewScope() zapcore.Field {
+	return NewScopeFromScope(sentry.NewScope())
 }
 
 func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, error) {
