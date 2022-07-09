@@ -27,7 +27,7 @@ func modifyToSentryLogger(log *zap.Logger, client *sentry.Client) *zap.Logger {
 ```
 
 Please note that wrapper does not guarantee that all your events will be sent before the app exits.
-Flush called internally only in case of writing message with severity level > zapcore.ErrorLevel(Fatal, Panic, ...).
+Flush called internally only in case of writing message with severity level > zapcore.ErrorLevel (i.e. Fatal, Panic, ...).
 If you want to ensure your messages come to sentry - call the flush on native sentry client at defer. 
 Example:
 ```golang
