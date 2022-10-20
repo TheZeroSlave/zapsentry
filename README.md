@@ -22,8 +22,8 @@ func modifyToSentryLogger(log *zap.Logger, client *sentry.Client) *zap.Logger {
 	
 	log = zapsentry.AttachCoreToLogger(core, log)
 
-    // to use breadcrumbs feature - create new scope explicitly
-    return log.With(zapsentry.NewScope())
+	// to use breadcrumbs feature - create new scope explicitly
+	return log.With(zapsentry.NewScope())
 }
 ```
 
