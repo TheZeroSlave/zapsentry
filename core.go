@@ -18,12 +18,16 @@ const (
 	zapSentryScopeKey = "_zapsentry_scope_"
 )
 
-func NewScope() zapcore.Field {
+func NewScopeFromScope(scope *sentry.Scope) zapcore.Field {
 	f := zap.Skip()
-	f.Interface = sentry.NewScope()
+	f.Interface = scope
 	f.Key = zapSentryScopeKey
 
 	return f
+}
+
+func NewScope() zapcore.Field {
+	return NewScopeFromScope(sentry.NewScope())
 }
 
 func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, error) {
@@ -90,7 +94,10 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 		event.Timestamp = ent.Time
 		event.Level = sentrySeverity(ent.Level)
 		event.Extra = clone.fields
-		event.Tags = c.cfg.Tags
+		event.Tags = make(map[string]string, len(c.cfg.Tags))
+		for k, v := range c.cfg.Tags {
+			event.Tags[k] = v
+		}
 		event.Exception = clone.createExceptions()
 
 		if event.Exception == nil && !c.cfg.DisableStacktrace && c.client.Options().AttachStacktrace {
