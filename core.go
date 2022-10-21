@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	maxBreadcrumbs = 1000
-	maxErrorDepth  = 10
+	defaultMaxBreadcrumbs = 100
+	maxErrorDepth         = 10
 
 	zapSentryScopeKey = "_zapsentry_scope_"
 )
@@ -38,6 +38,10 @@ func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, erro
 
 	if cfg.EnableBreadcrumbs && cfg.BreadcrumbLevel > cfg.Level {
 		return zapcore.NewNopCore(), errors.New("breadcrumb level must be lower than or equal to error level")
+	}
+
+	if cfg.MaxBreadcrumbs <= 0 {
+		cfg.MaxBreadcrumbs = defaultMaxBreadcrumbs
 	}
 
 	core := core{
@@ -85,7 +89,7 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 			Timestamp: ent.Time,
 		}
 
-		c.sentryScope.AddBreadcrumb(&breadcrumb, maxBreadcrumbs)
+		c.sentryScope.AddBreadcrumb(&breadcrumb, c.cfg.MaxBreadcrumbs)
 	}
 
 	if c.cfg.Level.Enabled(ent.Level) {
