@@ -34,6 +34,11 @@ type Configuration struct {
 	// The field is ignored, if EnableBreadcrumbs is not set.
 	BreadcrumbLevel zapcore.Level
 
+	// MaxBreadcrumbs is the maximum number of breadcrumb events to keep.
+	// Leave it zero or set to negative for a reasonable default value.
+	// The field is ignored, if EnableBreadcrumbs is not set.
+	MaxBreadcrumbs int
+
 	// FlushTimeout is the timeout for flushing events to Sentry.
 	FlushTimeout time.Duration
 
