@@ -94,9 +94,11 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 
 	if c.cfg.Level.Enabled(ent.Level) {
 		tagsCount := len(c.cfg.Tags)
-		for k, _ := range clone.fields {
-			if strings.HasPrefix(k, "tag:") && len(k) > 4 {
-				tagsCount++
+		for _, f := range fs {
+			if f.Type == zapcore.SkipType {
+				if _, ok := f.Interface.(tagField); ok {
+					tagsCount++
+				}
 			}
 		}
 
@@ -109,10 +111,10 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 		for k, v := range c.cfg.Tags {
 			event.Tags[k] = v
 		}
-		for k, v := range clone.fields {
-			if strings.HasPrefix(k, "tag:") && len(k) > 4 {
-				if s, ok := v.(string); ok {
-					event.Tags[strings.TrimPrefix(k, "tag:")] = s
+		for _, f := range fs {
+			if f.Type == zapcore.SkipType {
+				if t, ok := f.Interface.(tagField); ok {
+					event.Tags[t.Key] = t.Value
 				}
 			}
 		}

@@ -44,7 +44,7 @@ func ExampleAttachCoreToLogger() {
 	// Send error log
 	newLogger.
 		With(zapsentry.NewScope()).
-		Error("[error] something went wrong!", zap.String("method", "unknown"), zap.String("tag:service", "app"))
+		Error("[error] something went wrong!", zap.String("method", "unknown"), zapsentry.Tag("service", "app"))
 
 	// Check output
 	fmt.Println(recordedLogs.All()[0].Message)
@@ -53,7 +53,7 @@ func ExampleAttachCoreToLogger() {
 	fmt.Println(recordedSentryEvent.Tags)
 	// Output: [error] something went wrong!
 	// [error] something went wrong!
-	// map[method:unknown tag:service:app]
+	// map[method:unknown]
 	// map[component:system service:app]
 }
 
