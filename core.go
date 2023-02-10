@@ -93,14 +93,30 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 	}
 
 	if c.cfg.Level.Enabled(ent.Level) {
+		tagsCount := len(c.cfg.Tags)
+		for _, f := range fs {
+			if f.Type == zapcore.SkipType {
+				if _, ok := f.Interface.(tagField); ok {
+					tagsCount++
+				}
+			}
+		}
+
 		event := sentry.NewEvent()
 		event.Message = ent.Message
 		event.Timestamp = ent.Time
 		event.Level = sentrySeverity(ent.Level)
 		event.Extra = clone.fields
-		event.Tags = make(map[string]string, len(c.cfg.Tags))
+		event.Tags = make(map[string]string, tagsCount)
 		for k, v := range c.cfg.Tags {
 			event.Tags[k] = v
+		}
+		for _, f := range fs {
+			if f.Type == zapcore.SkipType {
+				if t, ok := f.Interface.(tagField); ok {
+					event.Tags[t.Key] = t.Value
+				}
+			}
 		}
 		event.Exception = clone.createExceptions()
 

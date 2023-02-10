@@ -44,15 +44,17 @@ func ExampleAttachCoreToLogger() {
 	// Send error log
 	newLogger.
 		With(zapsentry.NewScope()).
-		Error("[error] something went wrong!", zap.String("method", "unknown"))
+		Error("[error] something went wrong!", zap.String("method", "unknown"), zapsentry.Tag("service", "app"))
 
 	// Check output
 	fmt.Println(recordedLogs.All()[0].Message)
 	fmt.Println(recordedSentryEvent.Message)
 	fmt.Println(recordedSentryEvent.Extra)
+	fmt.Println(recordedSentryEvent.Tags)
 	// Output: [error] something went wrong!
 	// [error] something went wrong!
 	// map[method:unknown]
+	// map[component:system service:app]
 }
 
 func mockSentryClient(f func(event *sentry.Event)) *sentry.Client {
@@ -79,4 +81,3 @@ func (f *transport) Configure(_ sentry.ClientOptions) {}
 func (f *transport) SendEvent(event *sentry.Event) {
 	f.MockSendEvent(event)
 }
-
