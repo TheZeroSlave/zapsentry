@@ -107,6 +107,7 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 		event.Timestamp = ent.Time
 		event.Level = sentrySeverity(ent.Level)
 		event.Extra = clone.fields
+		event.Extra["errs"] = c.errs
 		event.Tags = make(map[string]string, tagsCount)
 		for k, v := range c.cfg.Tags {
 			event.Tags[k] = v
@@ -128,7 +129,7 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 			}
 		}
 
-		_ = c.client.CaptureEvent(event, nil, c.scope())
+		_ = c.client.CaptureEvent(event, c.createHint(), c.scope())
 	}
 
 	// We may be crashing the program, so should flush any buffered events.
@@ -298,6 +299,16 @@ type ClientGetter interface {
 
 func (c *core) GetClient() *sentry.Client {
 	return c.client
+}
+
+func (c *core) createHint() *sentry.EventHint {
+	hint := sentry.EventHint{
+		Data: c.errs,
+	}
+	if len(c.errs) > 0 {
+		hint.OriginalException = c.errs[0]
+	}
+	return &hint
 }
 
 type core struct {
