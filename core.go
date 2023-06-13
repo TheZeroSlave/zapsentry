@@ -18,6 +18,8 @@ const (
 	zapSentryScopeKey = "_zapsentry_scope_"
 )
 
+var ErrInvalidBreadcrumbLevel = errors.New("breadcrumb level must be lower than or equal to error level")
+
 func NewScopeFromScope(scope *sentry.Scope) zapcore.Field {
 	f := zap.Skip()
 	f.Interface = scope
@@ -36,8 +38,8 @@ func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, erro
 		return zapcore.NewNopCore(), err
 	}
 
-	if cfg.EnableBreadcrumbs && cfg.BreadcrumbLevel > cfg.Level {
-		return zapcore.NewNopCore(), errors.New("breadcrumb level must be lower than or equal to error level")
+	if cfg.EnableBreadcrumbs && zapcore.LevelOf(cfg.BreadcrumbLevel) > zapcore.LevelOf(cfg.Level) {
+		return zapcore.NewNopCore(), ErrInvalidBreadcrumbLevel
 	}
 
 	if cfg.MaxBreadcrumbs <= 0 {
@@ -48,7 +50,7 @@ func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, erro
 		client: client,
 		cfg:    &cfg,
 		LevelEnabler: &LevelEnabler{
-			Level:             cfg.Level,
+			LevelEnabler:      cfg.Level,
 			breadcrumbsLevel:  cfg.BreadcrumbLevel,
 			enableBreadcrumbs: cfg.EnableBreadcrumbs,
 		},
@@ -313,13 +315,13 @@ type core struct {
 }
 
 type LevelEnabler struct {
-	zapcore.Level
+	zapcore.LevelEnabler
 	enableBreadcrumbs bool
-	breadcrumbsLevel  zapcore.Level
+	breadcrumbsLevel  zapcore.LevelEnabler
 }
 
 func (l *LevelEnabler) Enabled(lvl zapcore.Level) bool {
-	return l.Level.Enabled(lvl) || (l.enableBreadcrumbs && l.breadcrumbsLevel.Enabled(lvl))
+	return l.LevelEnabler.Enabled(lvl) || (l.enableBreadcrumbs && l.breadcrumbsLevel.Enabled(lvl))
 }
 
 // follow same logic with sentry-go to filter unnecessary frames
