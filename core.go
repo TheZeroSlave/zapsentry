@@ -1,10 +1,11 @@
 package zapsentry
 
 import (
-	"errors"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/getsentry/sentry-go"
 	"go.uber.org/zap"
@@ -188,6 +189,8 @@ func (c *core) addExceptionsFromError(
 	err error,
 ) []sentry.Exception {
 	for i := 0; i < maxErrorDepth && err != nil; i++ {
+		wrappedErr := err
+		err = errors.Cause(err)
 		if _, ok := processedErrors[getTypeOf(err)]; ok {
 			return exceptions
 		}
@@ -195,9 +198,16 @@ func (c *core) addExceptionsFromError(
 		processedErrors[getTypeOf(err)] = struct{}{}
 
 		exception := sentry.Exception{Value: err.Error(), Type: reflect.TypeOf(err).String()}
+		if strings.HasSuffix(exception.Type, "errors.fundamental") {
+			// err was created with `errors.New(msg)` - make `msg` the type,
+			// and get the wrapped value as the value
+			exception.Type = exception.Value
+			exception.Value = wrappedErr.Error()
+		}
 
 		if !c.cfg.DisableStacktrace {
-			exception.Stacktrace = sentry.ExtractStacktrace(err)
+			// extract from wrappedErr - if err was not wrapped, its the same
+			exception.Stacktrace = sentry.ExtractStacktrace(wrappedErr)
 		}
 
 		exceptions = append(exceptions, exception)
@@ -205,8 +215,6 @@ func (c *core) addExceptionsFromError(
 		switch previousProvider := err.(type) {
 		case interface{ Unwrap() error }:
 			err = previousProvider.Unwrap()
-		case interface{ Cause() error }:
-			err = previousProvider.Cause()
 		default:
 			err = nil
 		}
