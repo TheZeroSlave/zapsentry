@@ -45,4 +45,8 @@ type Configuration struct {
 	// Hub overrides the sentry.CurrentHub value.
 	// See sentry.Hub docs for more detail.
 	Hub *sentry.Hub
+
+	// FrameMatcher allows to ignore some frames of the stack trace.
+	// this is particularly useful when you want to ignore for instances frames from convenience wrappers
+	FrameMatcher FrameMatcher
 }
