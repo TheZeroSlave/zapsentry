@@ -160,6 +160,8 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 			}
 		}
 
+		var hint *sentry.EventHint
+
 		event := sentry.NewEvent()
 		event.Message = ent.Message
 		event.Timestamp = ent.Time
@@ -171,8 +173,11 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 		}
 		for _, f := range fs {
 			if f.Type == zapcore.SkipType {
-				if t, ok := f.Interface.(tagField); ok {
+				switch t := f.Interface.(type) {
+				case tagField:
 					event.Tags[t.Key] = t.Value
+				case ctxField:
+					hint = &sentry.EventHint{Context: t.Value}
 				}
 			}
 		}
@@ -186,7 +191,7 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 			}
 		}
 
-		_ = c.client.CaptureEvent(event, nil, c.scope())
+		_ = c.client.CaptureEvent(event, hint, c.scope())
 	}
 
 	// We may be crashing the program, so should flush any buffered events.
