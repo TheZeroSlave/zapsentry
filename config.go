@@ -28,6 +28,10 @@ type Configuration struct {
 	// This feature works only when you explicitly passed new scope.
 	EnableBreadcrumbs bool
 
+	// If you cannot (or don't want to) create a local scope for breadcrumbs
+	// you an disable the default behavior of ignoring the global scope
+	EnableBreadcrumbsInGlobalScope bool
+
 	// BreadcrumbLevel is the minimal level of sentry.Breadcrumb(s).
 	// Breadcrumb specifies an application event that occurred before a Sentry event.
 	// NewCore fails if BreadcrumbLevel is greater than Level.
