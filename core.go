@@ -257,7 +257,7 @@ func (c *core) addExceptionsFromError(
 
 		processedErrors[getTypeOf(err)] = struct{}{}
 
-		exception := sentry.Exception{Value: err.Error(), Type: reflect.TypeOf(err).String()}
+		exception := sentry.Exception{Value: err.Error(), Type: getTypeName(err)}
 
 		if !c.cfg.DisableStacktrace {
 			exception.Stacktrace = sentry.ExtractStacktrace(err)
@@ -276,6 +276,14 @@ func (c *core) addExceptionsFromError(
 	}
 
 	return exceptions
+}
+
+func getTypeName(err error) string {
+	switch cast := err.(type) {
+	case interface{ TypeName() string }:
+		return cast.TypeName()
+	}
+	return reflect.TypeOf(err).String()
 }
 
 func (c *core) hub() *sentry.Hub {
