@@ -3,7 +3,6 @@ package zapsentry
 import (
 	"errors"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -20,47 +19,7 @@ const (
 
 var (
 	ErrInvalidBreadcrumbLevel = errors.New("breadcrumb level must be lower than or equal to error level")
-
-	defaultFrameMatchers = FrameMatchers{
-		SkipModulePrefixFrameMatcher("github.com/TheZeroSlave/zapsentry"),
-		SkipFunctionPrefixFrameMatcher("go.uber.org/zap"),
-	}
 )
-
-type (
-	FrameMatcher interface {
-		Matches(f sentry.Frame) bool
-	}
-	FrameMatchers                  []FrameMatcher
-	FrameMatcherFunc               func(f sentry.Frame) bool
-	SkipModulePrefixFrameMatcher   string
-	SkipFunctionPrefixFrameMatcher string
-)
-
-func (f FrameMatcherFunc) Matches(frame sentry.Frame) bool {
-	return f(frame)
-}
-
-func (f SkipModulePrefixFrameMatcher) Matches(frame sentry.Frame) bool {
-	return strings.HasPrefix(frame.Module, string(f))
-}
-
-func (f SkipFunctionPrefixFrameMatcher) Matches(frame sentry.Frame) bool {
-	return strings.HasPrefix(frame.Function, string(f))
-}
-
-func (ff FrameMatchers) Matches(frame sentry.Frame) bool {
-	for i := range ff {
-		if ff[i].Matches(frame) {
-			return true
-		}
-	}
-	return false
-}
-
-func CombineFrameMatchers(matcher ...FrameMatcher) FrameMatcher {
-	return FrameMatchers(matcher)
-}
 
 func NewScopeFromScope(scope *sentry.Scope) zapcore.Field {
 	f := zap.Skip()
@@ -88,18 +47,19 @@ func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, erro
 		cfg.MaxBreadcrumbs = defaultMaxBreadcrumbs
 	}
 
-	// copy default values to avoid accidental modification
+	// copy default values to prevent accidental modification.
 	matchers := make(FrameMatchers, len(defaultFrameMatchers), len(defaultFrameMatchers)+1)
 	copy(matchers, defaultFrameMatchers)
 
-	switch m := cfg.FrameMatcher.(type) {
-	case nil:
-		cfg.FrameMatcher = matchers
-	case FrameMatchers:
-		// in case the configured matcher was already a collection, append the default ones to avoid nested looping
-		cfg.FrameMatcher = append(matchers, m...)
-	default:
+	if cfg.FrameMatcher != nil {
 		cfg.FrameMatcher = append(matchers, cfg.FrameMatcher)
+	} else {
+		cfg.FrameMatcher = matchers
+	}
+
+	var flushTimeout = time.Second * 5
+	if cfg.FlushTimeout > 0 {
+		flushTimeout = cfg.FlushTimeout
 	}
 
 	core := core{
@@ -110,12 +70,8 @@ func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, erro
 			breadcrumbsLevel:  cfg.BreadcrumbLevel,
 			enableBreadcrumbs: cfg.EnableBreadcrumbs,
 		},
-		flushTimeout: 5 * time.Second,
+		flushTimeout: flushTimeout,
 		fields:       make(map[string]interface{}),
-	}
-
-	if cfg.FlushTimeout > 0 {
-		core.flushTimeout = cfg.FlushTimeout
 	}
 
 	return &core, nil
@@ -138,8 +94,7 @@ func (c *core) Check(ent zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.Check
 func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 	clone := c.with(c.addSpecialFields(ent, fs))
 
-	// only when we have local sentryScope to avoid collecting all breadcrumbs ever in a global scope
-	if c.cfg.EnableBreadcrumbs && c.cfg.BreadcrumbLevel.Enabled(ent.Level) && c.scope() != nil {
+	if c.cfg.EnableBreadcrumbs && c.cfg.BreadcrumbLevel.Enabled(ent.Level) {
 		breadcrumb := sentry.Breadcrumb{
 			Message:   ent.Message,
 			Data:      clone.fields,
@@ -363,10 +318,6 @@ func (c *core) with(fs []zapcore.Field) *core {
 	}
 }
 
-type ClientGetter interface {
-	GetClient() *sentry.Client
-}
-
 func (c *core) GetClient() *sentry.Client {
 	return c.client
 }
@@ -403,14 +354,4 @@ func (c *core) filterFrames(frames []sentry.Frame) []sentry.Frame {
 	}
 
 	return frames
-}
-
-type LevelEnabler struct {
-	zapcore.LevelEnabler
-	enableBreadcrumbs bool
-	breadcrumbsLevel  zapcore.LevelEnabler
-}
-
-func (l *LevelEnabler) Enabled(lvl zapcore.Level) bool {
-	return l.LevelEnabler.Enabled(lvl) || (l.enableBreadcrumbs && l.breadcrumbsLevel.Enabled(lvl))
 }
