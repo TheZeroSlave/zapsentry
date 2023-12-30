@@ -21,6 +21,10 @@ var (
 	ErrInvalidBreadcrumbLevel = errors.New("breadcrumb level must be lower than or equal to error level")
 )
 
+type ClientGetter interface {
+	GetClient() *sentry.Client
+}
+
 func NewScopeFromScope(scope *sentry.Scope) zapcore.Field {
 	f := zap.Skip()
 	f.Interface = scope
