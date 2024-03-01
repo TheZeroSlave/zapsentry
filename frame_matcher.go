@@ -20,7 +20,7 @@ type FrameMatcher interface {
 var (
 	defaultFrameMatchers = FrameMatchers{
 		SkipModulePrefixFrameMatcher("github.com/TheZeroSlave/zapsentry"),
-		SkipFunctionPrefixFrameMatcher("go.uber.org/zap"),
+		SkipModulePrefixFrameMatcher("go.uber.org/zap"),
 	}
 )
 
