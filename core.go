@@ -219,7 +219,10 @@ func (c *core) addExceptionsFromError(
 		exception := sentry.Exception{Value: err.Error(), Type: getTypeName(err)}
 
 		if !c.cfg.DisableStacktrace {
-			exception.Stacktrace = sentry.ExtractStacktrace(err)
+			stacktrace := sentry.ExtractStacktrace(err)
+			stacktrace.Frames = c.filterFrames(stacktrace.Frames)
+
+			exception.Stacktrace = stacktrace
 		}
 
 		exceptions = append(exceptions, exception)
