@@ -51,7 +51,7 @@ func Test_core_filterFrames(t *testing.T) {
 			args: args{
 				[]sentry.Frame{
 					{
-						Function: "go.uber.org/zap/String",
+						Module: "go.uber.org/zap",
 					},
 				},
 			},
