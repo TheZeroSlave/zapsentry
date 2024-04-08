@@ -1,5 +1,10 @@
 # Sentry client for zap logger
 
+## Installation
+```
+go get github.com/TheZeroSlave/zapsentry@latest
+```
+
 ## Integration using Sentry Client
 
 Integration of sentry client into zap.Logger is pretty simple:
