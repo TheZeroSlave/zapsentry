@@ -1,6 +1,7 @@
 package zapsentry_test
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -54,7 +55,7 @@ func ExampleAttachCoreToLogger() {
 	// Check output
 	fmt.Println(recordedLogs.All()[0].Message)
 	fmt.Println(recordedSentryEvent.Message)
-	fmt.Println(recordedSentryEvent.Extra)
+	fmt.Println(recordedSentryEvent.Contexts["Extra"])
 	fmt.Println(recordedSentryEvent.Tags)
 	// Output: [error] something went wrong!
 	// [error] something went wrong!
@@ -78,6 +79,10 @@ type transport struct {
 // for at most the given timeout. It returns false if the timeout was reached.
 func (f *transport) Flush(_ time.Duration) bool { return true }
 
+// FlushWithContext waits until any buffered events are sent to the Sentry server,
+// blocking for at most the given context's deadline.
+func (f *transport) FlushWithContext(_ context.Context) bool { return true }
+
 // Configure is called by the Client itself, providing it it's own ClientOptions.
 func (f *transport) Configure(_ sentry.ClientOptions) {}
 
@@ -86,3 +91,6 @@ func (f *transport) Configure(_ sentry.ClientOptions) {}
 func (f *transport) SendEvent(event *sentry.Event) {
 	f.MockSendEvent(event)
 }
+
+// Close releases any resources held by the transport.
+func (f *transport) Close() {}
