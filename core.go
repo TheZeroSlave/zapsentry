@@ -125,7 +125,7 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 		event.Message = ent.Message
 		event.Timestamp = ent.Time
 		event.Level = sentrySeverity(ent.Level)
-		event.Extra = clone.fields
+		event.Contexts["Extra"] = clone.fields
 		event.Tags = make(map[string]string, tagsCount)
 		for k, v := range c.cfg.Tags {
 			event.Tags[k] = v
