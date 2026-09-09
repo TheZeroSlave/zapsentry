@@ -1,7 +1,9 @@
 package zapsentry
 
 import (
+	"context"
 	"errors"
+	"maps"
 	"reflect"
 	"time"
 
@@ -76,6 +78,7 @@ func NewCore(cfg Configuration, factory SentryClientFactory) (zapcore.Core, erro
 		},
 		flushTimeout: flushTimeout,
 		fields:       make(map[string]interface{}),
+		tags:         maps.Clone(cfg.Tags),
 	}
 
 	return &core, nil
@@ -110,36 +113,17 @@ func (c *core) Write(ent zapcore.Entry, fs []zapcore.Field) error {
 	}
 
 	if c.cfg.Level.Enabled(ent.Level) {
-		tagsCount := len(c.cfg.Tags)
-		for _, f := range fs {
-			if f.Type == zapcore.SkipType {
-				if _, ok := f.Interface.(tagField); ok {
-					tagsCount++
-				}
-			}
-		}
-
 		var hint *sentry.EventHint
+		if clone.ctx != nil {
+			hint = &sentry.EventHint{Context: clone.ctx}
+		}
 
 		event := sentry.NewEvent()
 		event.Message = ent.Message
 		event.Timestamp = ent.Time
 		event.Level = sentrySeverity(ent.Level)
 		event.Contexts["Extra"] = clone.fields
-		event.Tags = make(map[string]string, tagsCount)
-		for k, v := range c.cfg.Tags {
-			event.Tags[k] = v
-		}
-		for _, f := range fs {
-			if f.Type == zapcore.SkipType {
-				switch t := f.Interface.(type) {
-				case tagField:
-					event.Tags[t.Key] = t.Value
-				case ctxField:
-					hint = &sentry.EventHint{Context: t.Value}
-				}
-			}
-		}
+		maps.Copy(event.Tags, clone.tags)
 		event.Exception = clone.createExceptions()
 
 		if event.Exception == nil && !c.cfg.DisableStacktrace && c.client.Options().AttachStacktrace {
@@ -266,16 +250,6 @@ func (c *core) scope() *sentry.Scope {
 	return c.hub().Scope()
 }
 
-func getScope(field zapcore.Field) *sentry.Scope {
-	if field.Type == zapcore.SkipType {
-		if scope, ok := field.Interface.(*sentry.Scope); ok && field.Key == zapSentryScopeKey {
-			return scope
-		}
-	}
-
-	return nil
-}
-
 func (c *core) Sync() error {
 	c.client.Flush(c.flushTimeout)
 
@@ -292,23 +266,40 @@ func (c *core) with(fs []zapcore.Field) *core {
 	copy(errs, c.errs)
 
 	fields := make(map[string]interface{}, len(c.fields)+len(fs))
+	maps.Copy(fields, c.fields)
 
-	for k, v := range c.fields {
-		fields[k] = v
-	}
-
+	// tags is shared with the parent until a tag field is actually added.
+	tags, tagsCloned := c.tags, false
+	ctx := c.ctx
 	sentryScope := c.sentryScope
 	enc := zapcore.NewMapObjectEncoder()
 
 	for _, f := range fs {
 		f.AddTo(enc)
 
-		if f.Type == zapcore.ErrorType {
+		switch f.Type {
+		case zapcore.ErrorType:
 			errs = append(errs, f.Interface.(error))
-		} else if errSlice, ok := f.Interface.([]error); ok {
-			errs = append(errs, errSlice...)
-		} else if scope := getScope(f); scope != nil {
-			sentryScope = scope
+		case zapcore.SkipType:
+			switch t := f.Interface.(type) {
+			case *sentry.Scope:
+				if f.Key == zapSentryScopeKey {
+					sentryScope = t
+				}
+			case tagField:
+				if !tagsCloned {
+					tags = make(map[string]string, len(c.tags)+1)
+					maps.Copy(tags, c.tags)
+					tagsCloned = true
+				}
+				tags[f.Key] = string(t)
+			case ctxField:
+				ctx = t.Value
+			}
+		default:
+			if errSlice, ok := f.Interface.([]error); ok {
+				errs = append(errs, errSlice...)
+			}
 		}
 	}
 
@@ -322,8 +313,10 @@ func (c *core) with(fs []zapcore.Field) *core {
 		LevelEnabler: c.LevelEnabler,
 		flushTimeout: c.flushTimeout,
 		sentryScope:  sentryScope,
+		ctx:          ctx,
 		errs:         errs,
 		fields:       fields,
+		tags:         tags,
 	}
 }
 
@@ -338,9 +331,11 @@ type core struct {
 	flushTimeout time.Duration
 
 	sentryScope *sentry.Scope
+	ctx         context.Context
 
 	errs   []error
 	fields map[string]interface{}
+	tags   map[string]string
 }
 
 // follow same logic with sentry-go to filter unnecessary frames
